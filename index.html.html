@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShadowAI - LLM Cost Optimizer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.16/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f0f2f5;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 30px 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        }
+
+        .header h1 {
+            font-size: 2.8rem;
+            color: #2563eb;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            color: #64748b;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+        }
+
+        /* CHAT SECTION */
+        .chat-section {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 2px 15px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+
+        .chat-header {
+            background: #2563eb;
+            color: white;
+            padding: 20px 30px;
+            font-size: 1.3rem;
+            font-weight: 600;
+        }
+
+        .chat-body {
+            height: 500px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .messages-area {
+            flex: 1;
+            padding: 30px;
+            overflow-y: auto;
+            background: #fafbfc;
+        }
+
+        .chat-message {
+            margin-bottom: 25px;
+            clear: both;
+        }
+
+        .user-message {
+            text-align: right;
+        }
+
+        .user-bubble {
+            display: inline-block;
+            background: #2563eb;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 20px;
+            border-bottom-right-radius: 5px;
+            max-width: 80%;
+            font-size: 15px;
+        }
+
+        .bot-message {
+            text-align: left;
+        }
+
+        .bot-bubble {
+            display: inline-block;
+            background: white;
+            border: 2px solid #e5e7eb;
+            color: #374151;
+            padding: 15px 20px;
+            border-radius: 20px;
+            border-bottom-left-radius: 5px;
+            max-width: 85%;
+            font-size: 15px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .loading-bubble {
+            background: #f3f4f6 !important;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .spinner {
+            width: 18px;
+            height: 18px;
+            border: 2px solid #d1d5db;
+            border-top: 2px solid #2563eb;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .input-section {
+            padding: 25px 30px;
+            border-top: 1px solid #e5e7eb;
+            background: white;
+        }
+
+        .quick-suggestions {
+            margin-bottom: 20px;
+        }
+
+        .suggestion-tag {
+            display: inline-block;
+            background: #eff6ff;
+            color: #2563eb;
+            padding: 8px 15px;
+            border-radius: 25px;
+            font-size: 13px;
+            margin: 5px 5px 0 0;
+            cursor: pointer;
+            border: 1px solid #bfdbfe;
+            transition: all 0.2s;
+        }
+
+        .suggestion-tag:hover {
+            background: #2563eb;
+            color: white;
+        }
+
+        .input-row {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 15px 20px;
+            border: 2px solid #e5e7eb;
+            border-radius: 25px;
+            font-size: 16px;
+            outline: none;
+        }
+
+        .chat-input:focus {
+            border-color: #2563eb;
+        }
+
+        .send-btn {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 15px 25px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 15px;
+        }
+
+        .send-btn:hover:not(:disabled) {
+            background: #1d4ed8;
+        }
+
+        .send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* RESULTS SECTION */
+        .results-section {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 2px 15px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+
+        .results-header {
+            background: #059669;
+            color: white;
+            padding: 20px 30px;
+            font-size: 1.3rem;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .download-btn {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .download-btn:hover:not(:disabled) {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .download-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .results-body {
+            height: 500px;
+            overflow-y: auto;
+            padding: 30px;
+        }
+
+        .result-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 25px;
+        }
+
+        .result-question {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .result-answer {
+            color: #475569;
+            font-size: 15px;
+            line-height: 1.7;
+            margin-bottom: 20px;
+        }
+
+        .result-highlights {
+            background: #ecfdf5;
+            border-left: 4px solid #10b981;
+            padding: 15px 20px;
+            border-radius: 8px;
+        }
+
+        .highlight-title {
+            font-weight: 600;
+            color: #065f46;
+            margin-bottom: 8px;
+        }
+
+        .highlight-item {
+            color: #047857;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+
+        .empty-placeholder {
+            text-align: center;
+            color: #94a3b8;
+            padding: 60px 20px;
+        }
+
+        .empty-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .empty-text {
+            font-size: 1.1rem;
+        }
+
+        .clear-btn {
+            background: #dc2626;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            margin-left: 10px;
+        }
+
+        .clear-btn:hover {
+            background: #b91c1c;
+        }
+
+        /* Table specific styles */
+        .result-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            margin-bottom: 20px;
+        }
+
+        .result-table th, .result-table td {
+            border: 1px solid #e2e8f0;
+            padding: 10px 15px;
+            text-align: left;
+            font-size: 0.95rem;
+        }
+
+        .result-table th {
+            background-color: #f0f2f5;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .result-table tr:nth-child(even) {
+            background-color: #fdfdfd;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+                gap: 30px;
+            }
+            
+            .header h1 {
+                font-size: 2.2rem;
+            }
+
+            .input-row {
+                flex-direction: column;
+                gap: 15px;
+            }
+
+            .chat-input {
+                width: 100%;
+            }
+
+            .send-btn {
+                width: 100%;
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 ShadowAI</h1>
+            <p>Get smart recommendations for LLM costs and model selection</p>
+        </div>
+
+        <div class="main-content">
+            <div class="chat-section">
+                <div class="chat-header">
+                    💬 Ask Your Question
+                </div>
+                
+                <div class="chat-body">
+                    <div class="messages-area" id="messagesArea">
+                        <div class="empty-placeholder">
+                            <div class="empty-icon">🤖</div>
+                            <div class="empty-text">Ask me about LLM costs, models, or optimization tips!</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="input-section">
+                    <div class="quick-suggestions">
+                        <div class="suggestion-tag" onclick="askQuestion('What is the cheapest LLM model?')">
+                            💰 Cheapest model?
+                        </div>
+                        <div class="suggestion-tag" onclick="askQuestion('Compare GPT-4 vs Claude costs')">
+                            📊 Compare costs
+                        </div>
+                        <div class="suggestion-tag" onclick="askQuestion('Best model for chatbots?')">
+                            💬 Best for chatbots?
+                        </div>
+                        <div class="suggestion-tag" onclick="askQuestion('How to reduce LLM expenses?')">
+                            ✨ Save money tips
+                        </div>
+                    </div>
+
+                    <div class="input-row">
+                        <input 
+                            type="text" 
+                            class="chat-input" 
+                            id="chatInput"
+                            placeholder="Type your question here..."
+                        >
+                        <button class="send-btn" id="sendBtn" onclick="sendMessage()">
+                            Send
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="results-section">
+                <div class="results-header">
+                    📈 Your Results
+                    <div>
+                        <button class="download-btn" id="downloadBtn" onclick="downloadReport()" disabled>
+                            📄 Download PDF
+                        </button>
+                        <button class="clear-btn" onclick="clearAll()">
+                            🗑️ Clear
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="results-body" id="resultsBody">
+                    <div class="empty-placeholder">
+                        <div class="empty-icon">📋</div>
+                        <div class="empty-text">Your analysis results will appear here</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class ShadowAI {
+            constructor() {
+                // API Configuration
+                this.apiUrl = 'https://agent-prod.studio.lyzr.ai/v3/inference/chat/';
+                this.apiKey = 'sk-default-dFVlkt7fMGnDS6KOLsyO12ATT64p566t'; // Replace with your actual API Key
+                this.userId = 'samarthscoe@gmail.com'; // Replace with your actual user ID
+                this.agentId = '687be5ce02902153266f0610'; // Replace with your actual agent ID
+                this.sessionId = '687be5ce02902153266f0610-zc6rauwc1a'; // Replace with your actual session ID
+                
+                // Elements
+                this.messagesArea = document.getElementById('messagesArea');
+                this.resultsBody = document.getElementById('resultsBody');
+                this.chatInput = document.getElementById('chatInput');
+                this.sendBtn = document.getElementById('sendBtn');
+                this.downloadBtn = document.getElementById('downloadBtn');
+                
+                // Data
+                this.analysisData = [];
+                
+                this.setupEventListeners();
+            }
+
+            setupEventListeners() {
+                this.chatInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        this.sendMessage();
+                    }
+                });
+            }
+
+            async sendMessage(customQuestion = null) {
+                const question = customQuestion || this.chatInput.value.trim();
+                if (!question) return;
+
+                // Clear input if not custom question
+                if (!customQuestion) {
+                    this.chatInput.value = '';
+                }
+
+                // Remove empty state from chat
+                this.removeEmptyState('chat');
+                
+                // Add user message
+                this.addChatMessage(question, 'user');
+                
+                // Show loading
+                const loadingId = this.showLoading();
+                
+                try {
+                    const response = await this.callAPI(question);
+                    this.removeLoading(loadingId);
+                    this.addChatMessage(response, 'bot'); // Display the full response in chat for context
+                    this.addToResults(question, response); // Process for results and PDF
+                } catch (error) {
+                    this.removeLoading(loadingId);
+                    this.addChatMessage('Sorry, something went wrong. Please try again.', 'bot');
+                    console.error('Error:', error);
+                }
+            }
+
+            async callAPI(message) {
+                const response = await fetch(this.apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-api-key': this.apiKey
+                    },
+                    body: JSON.stringify({
+                        user_id: this.userId,
+                        agent_id: this.agentId,
+                        session_id: this.sessionId,
+                        message: message
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+
+                const data = await response.json();
+                return data.response || data.message || 'No response received';
+            }
+
+            addChatMessage(message, type) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `chat-message ${type}-message`;
+                
+                const bubble = document.createElement('div');
+                bubble.className = `${type}-bubble`;
+                
+                // Use a simple markdown-to-HTML formatter for chat messages
+                bubble.innerHTML = this.formatMarkdownToHtml(message); 
+                
+                messageDiv.appendChild(bubble);
+                this.messagesArea.appendChild(messageDiv);
+                this.messagesArea.scrollTop = this.messagesArea.scrollHeight;
+            }
+
+            showLoading() {
+                const loadingId = 'loading-' + Date.now();
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'chat-message bot-message';
+                messageDiv.id = loadingId;
+                
+                const bubble = document.createElement('div');
+                bubble.className = 'bot-bubble loading-bubble';
+                bubble.innerHTML = '<div class="spinner"></div><span>Thinking...</span>';
+                
+                messageDiv.appendChild(bubble);
+                this.messagesArea.appendChild(messageDiv);
+                this.messagesArea.scrollTop = this.messagesArea.scrollHeight;
+                
+                return loadingId;
+            }
+
+            removeLoading(loadingId) {
+                const loading = document.getElementById(loadingId);
+                if (loading) {
+                    loading.remove();
+                }
+            }
+
+            addToResults(question, answer) {
+                this.removeEmptyState('results');
+                
+                const parsedTableData = this.parseApiResponseForTable(answer);
+                // Get a concise summary for display if no table is found
+                const conciseAnswer = this.getConciseSummary(answer, parsedTableData);
+
+                const resultData = {
+                    id: Date.now(),
+                    timestamp: new Date().toLocaleString(),
+                    question: question,
+                    fullAnswer: answer, // Keep original full answer for PDF
+                    conciseAnswer: conciseAnswer, // For display in result card
+                    highlights: this.extractHighlights(answer),
+                    parsedTableData: parsedTableData 
+                };
+                
+                this.analysisData.push(resultData);
+                this.displayResult(resultData);
+                this.downloadBtn.disabled = false;
+            }
+
+            extractHighlights(text) {
+                const highlights = [];
+                // Split by common sentence terminators, but keep them for rejoining
+                const sentences = text.split(/(?<=[.!?])\s+/)
+                                    .map(s => s.trim())
+                                    .filter(s => s.length > 0);
+                
+                sentences.forEach(sentence => {
+                    const lower = sentence.toLowerCase();
+                    if (lower.includes('recommend') || 
+                        lower.includes('best') || 
+                        lower.includes('cost') || 
+                        lower.includes('save') ||
+                        lower.includes('optimize') ||
+                        lower.includes('price')) { 
+                        highlights.push('💡 ' + sentence.trim());
+                    }
+                });
+                
+                if (highlights.length === 0 && sentences.length > 0) {
+                    for (let i = 0; i < Math.min(3, sentences.length); i++) {
+                        highlights.push('▪ ' + sentences[i]);
+                    }
+                }
+                return highlights;
+            }
+
+            getConciseSummary(fullAnswer, parsedTableData) {
+                if (parsedTableData && parsedTableData.length > 0) {
+                    return null; // Signal that table should be rendered instead of text.
+                }
+
+                const sentences = fullAnswer.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(s => s.length > 0);
+                let summary = "";
+                let charCount = 0;
+                const maxChars = 300; 
+
+                for (const sentence of sentences) {
+                    if (charCount + sentence.length + 1 < maxChars) { 
+                        summary += sentence + " ";
+                        charCount += sentence.length + 1;
+                    } else if (charCount === 0) { 
+                        summary = sentence.substring(0, maxChars) + "...";
+                        break;
+                    } else {
+                        summary += "...";
+                        break;
+                    }
+                }
+                return summary.trim();
+            }
+
+            parseApiResponseForTable(answer) {
+                // Priority 1: Markdown Table
+                const tableMatch = answer.match(/\|(.+)\|(?:\r?\n|\r)\|(?:[- ]+\|)+?(?:\r?\n|\r)((?:\|.*\|(?:\r?\n|\r))*)/);
+                if (tableMatch && tableMatch[1] && tableMatch[2]) {
+                    try {
+                        const headers = tableMatch[1].split('|').map(h => h.trim()).filter(h => h);
+                        const rows = tableMatch[2].split(/\r?\n|\r/).map(row => row.trim()).filter(row => row).map(row => {
+                            return row.split('|').map(cell => cell.trim().replace(/^[`'"]|[`'"]$/g, '')).filter((_, i, arr) => {
+                                if (i === 0 && cell === '') return false;
+                                return true;
+                            });
+                        });
+                        
+                        const tableData = [];
+                        rows.forEach(row => {
+                            if (row.length === headers.length) { 
+                                const rowObject = {};
+                                headers.forEach((header, index) => {
+                                    rowObject[header] = row[index];
+                                });
+                                tableData.push(rowObject);
+                            } else {
+                                console.warn("Row length mismatch in markdown table parsing:", row);
+                            }
+                        });
+                        return tableData.length > 0 ? tableData : null;
+                    } catch (e) {
+                        console.error("Error parsing markdown table:", e);
+                        return null;
+                    }
+                }
+
+                // Priority 2: JSON block
+                try {
+                    const jsonMatch = answer.match(/```json\n([\s\S]*?)\n```/);
+                    if (jsonMatch && jsonMatch[1]) {
+                        const parsedJson = JSON.parse(jsonMatch[1]);
+                        if (Array.isArray(parsedJson) && parsedJson.every(item => typeof item === 'object' && item !== null)) {
+                            return parsedJson;
+                        }
+                    }
+                } catch (e) {
+                    console.error("Could not parse JSON from response:", e);
+                }
+
+                // Example for "Compare GPT-4 vs Claude costs" (simplified)
+                if (answer.toLowerCase().includes("gpt-4") && answer.toLowerCase().includes("claude") && answer.toLowerCase().includes("cost")) {
+                    const data = [];
+                    const gpt4InputMatch = answer.match(/GPT-4.*?input cost(?::|=)\s*([\$\d\.]+)/i);
+                    const gpt4OutputMatch = answer.match(/GPT-4.*?output cost(?::|=)\s*([\$\d\.]+)/i);
+                    const claudeInputMatch = answer.match(/Claude.*?input cost(?::|=)\s*([\$\d\.]+)/i);
+                    const claudeOutputMatch = answer.match(/Claude.*?output cost(?::|=)\s*([\$\d\.]+)/i);
+
+                    if (gpt4InputMatch || gpt4OutputMatch) {
+                        data.push({
+                            "Model": "GPT-4",
+                            "Input Cost": gpt4InputMatch ? gpt4InputMatch[1] : "N/A",
+                            "Output Cost": gpt4OutputMatch ? gpt4OutputMatch[1] : "N/A"
+                        });
+                    }
+                    if (claudeInputMatch || claudeOutputMatch) {
+                        data.push({
+                            "Model": "Claude",
+                            "Input Cost": claudeInputMatch ? claudeInputMatch[1] : "N/A",
+                            "Output Cost": claudeOutputMatch ? claudeOutputMatch[1] : "N/A"
+                        });
+                    }
+                    if (data.length > 0) return data;
+                }
+
+                return null; 
+            }
+
+            displayResult(data) {
+                const resultCard = document.createElement('div');
+                resultCard.className = 'result-card';
+                
+                let html = `
+                    <div class="result-question">Q: ${data.question}</div>
+                `;
+
+                if (data.parsedTableData && Array.isArray(data.parsedTableData) && data.parsedTableData.length > 0) {
+                    const headers = Object.keys(data.parsedTableData[0]);
+                    html += `<table class="result-table"><thead><tr>`;
+                    headers.forEach(header => {
+                        html += `<th>${header}</th>`;
+                    });
+                    html += `</tr></thead><tbody>`;
+                    data.parsedTableData.forEach(row => {
+                        html += `<tr>`;
+                        headers.forEach(header => {
+                            html += `<td>${row[header] || ''}</td>`;
+                        });
+                        html += `</tr>`;
+                    });
+                    html += `</tbody></table>`;
+                } else {
+                    const textToDisplay = data.conciseAnswer || data.fullAnswer;
+                    html += `<div class="result-answer">${this.formatMarkdownToHtml(textToDisplay)}</div>`;
+                }
+                
+                if (data.highlights.length > 0) {
+                    html += `
+                        <div class="result-highlights">
+                            <div class="highlight-title">🎯 Key Points:</div>
+                            ${data.highlights.map(h => `<div class="highlight-item">${this.formatMarkdownToHtml(h)}</div>`).join('')}
+                        </div>
+                    `;
+                }
+                
+                resultCard.innerHTML = html;
+                this.resultsBody.appendChild(resultCard);
+                this.resultsBody.scrollTop = this.resultsBody.scrollHeight;
+            }
+
+            formatMarkdownToHtml(text) {
+                if (!text) return '';
+                let html = text;
+                html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+                html = html.replace(/\n/g, '<br>');
+                return html;
+            }
+
+            // Updated to specifically remove the emojis used for highlights
+            stripHtmlAndMarkdown(text) {
+                if (!text) return '';
+                let cleanedText = text;
+                // Remove specific emojis
+                cleanedText = cleanedText.replace(/💡|🎯|▪/g, ''); 
+                // Remove HTML tags
+                cleanedText = cleanedText.replace(/<[^>]*>/g, '');
+                // Remove common markdown (bold, italics, headers, lists - simplified)
+                cleanedText = cleanedText.replace(/(\*\*|__)(.*?)\1/g, '$2'); 
+                cleanedText = cleanedText.replace(/(\*|_)(.*?)\1/g, '$2');   
+                cleanedText = cleanedText.replace(/^- /, '');              
+                cleanedText = cleanedText.replace(/^#+ /, '');             
+                cleanedText = cleanedText.replace(/`/g, '');               
+                return cleanedText.trim();
+            }
+
+            removeEmptyState(section) {
+                const container = section === 'chat' ? this.messagesArea : this.resultsBody;
+                const emptyState = container.querySelector('.empty-placeholder');
+                if (emptyState) {
+                    emptyState.remove();
+                }
+            }
+
+            clearAll() {
+                this.messagesArea.innerHTML = `
+                    <div class="empty-placeholder">
+                        <div class="empty-icon">🤖</div>
+                        <div class="empty-text">Ask me about LLM costs, models, or optimization tips!</div>
+                    </div>
+                `;
+                
+                this.resultsBody.innerHTML = `
+                    <div class="empty-placeholder">
+                        <div class="empty-icon">📋</div>
+                        <div class="empty-text">Your analysis results will appear here</div>
+                    </div>
+                `;
+                
+                this.analysisData = [];
+                this.downloadBtn.disabled = true;
+            }
+
+            downloadReport() {
+                if (this.analysisData.length === 0) return;
+
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                
+                doc.setFontSize(24);
+                doc.text('ShadowAI Analysis Report', 20, 30);
+                
+                doc.setFontSize(12);
+                doc.text(`Generated: ${new Date().toLocaleString()}`, 20, 45);
+                doc.text(`Total Questions: ${this.analysisData.length}`, 20, 55);
+                
+                let yPos = 75;
+                
+                this.analysisData.forEach((item, index) => {
+                    if (yPos > 250) { 
+                        doc.addPage();
+                        yPos = 30;
+                    }
+                    
+                    doc.setFontSize(14);
+                    doc.text(`${index + 1}. ${this.stripHtmlAndMarkdown(item.question)}`, 20, yPos);
+                    yPos += 15;
+                    
+                    if (item.parsedTableData && Array.isArray(item.parsedTableData) && item.parsedTableData.length > 0) {
+                        const headers = Object.keys(item.parsedTableData[0]);
+                        const tableRows = item.parsedTableData.map(row => 
+                            headers.map(header => this.stripHtmlAndMarkdown(String(row[header] || '')))
+                        );
+                        
+                        doc.autoTable({
+                            startY: yPos,
+                            head: [headers.map(h => this.stripHtmlAndMarkdown(h))],
+                            body: tableRows,
+                            theme: 'grid',
+                            styles: { fontSize: 8, cellPadding: 2, overflow: 'linebreak' },
+                            headStyles: { fillColor: [5, 150, 105], textColor: 255 },
+                            margin: { left: 20, right: 20 },
+                            didDrawPage: (data) => {
+                                // If a new page was created by autoTable, adjust yPos
+                                if (data.cursor.y < yPos && data.pageNumber > doc.internal.getNumberOfPages() - 1) { // Check if new page
+                                    yPos = 30; // Reset for new page
+                                } else {
+                                    yPos = data.cursor.y + 10;
+                                }
+                            }
+                        });
+                        // Update yPos after the table has been drawn
+                        yPos = doc.autoTable.previous.finalY + 10; 
+
+                    } else {
+                        doc.setFontSize(11);
+                        const answerText = this.stripHtmlAndMarkdown(item.fullAnswer);
+                        const answerLines = doc.splitTextToSize(answerText, 170);
+                        doc.text(answerLines, 25, yPos);
+                        yPos += (answerLines.length * 5) + 15;
+                    }
+                    
+                    if (item.highlights.length > 0) {
+                        doc.setFontSize(12);
+                        // Using a text bullet instead of image, more compatible with basic fonts
+                        doc.text('• Key Points:', 25, yPos); // Changed to plain bullet
+                        yPos += 10;
+                        
+                        doc.setFontSize(10);
+                        item.highlights.forEach(highlight => {
+                            // Strip highlights of markdown/HTML and emojis
+                            const highlightLines = doc.splitTextToSize(this.stripHtmlAndMarkdown(highlight), 160);
+                            doc.text(highlightLines, 30, yPos);
+                            yPos += (highlightLines.length * 4) + 3;
+                        });
+                    }
+                    
+                    yPos += 15;
+                });
+                
+                doc.save('ShadowAI-Report.pdf');
+            }
+        }
+
+        // Initialize app
+        const app = new ShadowAI();
+
+        // Global functions
+        function sendMessage() {
+            app.sendMessage();
+        }
+
+        function askQuestion(question) {
+            app.sendMessage(question);
+        }
+
+        function downloadReport() {
+            app.downloadReport();
+        }
+
+        function clearAll() {
+            app.clearAll();
+        }
+    </script>
+</body>
+</html>
